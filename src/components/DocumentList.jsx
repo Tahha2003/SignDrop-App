@@ -1,8 +1,63 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import DocumentDetailsModal from './DocumentDetailsModal';
 
 function DocumentList({ documents, onRefresh }) {
+  const [selectedDocumentId, setSelectedDocumentId] = useState(null);
+
   const downloadSigned = async (documentId, filename) => {
-    window.open(`/api/download/${documentId}`, '_blank');
+    const token = localStorage.getItem('authToken');
+    try {
+      const res = await fetch(`/api/download/${documentId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!res.ok) {
+        alert('Failed to download document');
+        return;
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `signed-${filename}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      alert('Download failed');
+    }
+  };
+
+  const deleteDocument = async (documentId, filename) => {
+    if (!confirm(`Are you sure you want to delete "${filename}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    const token = localStorage.getItem('authToken');
+    try {
+      const res = await fetch(`/api/document/${documentId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete document');
+        return;
+      }
+
+      alert('Document deleted successfully');
+      onRefresh();
+    } catch (error) {
+      alert('Failed to delete document');
+    }
   };
 
   return (
@@ -31,7 +86,14 @@ function DocumentList({ documents, onRefresh }) {
           <tbody className="divide-y divide-gray-200">
             {documents.map((doc) => (
               <tr key={doc.id}>
-                <td className="px-6 py-4 text-sm text-gray-900">{doc.originalName}</td>
+                <td className="px-6 py-4 text-sm">
+                  <button
+                    onClick={() => setSelectedDocumentId(doc.id)}
+                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left"
+                  >
+                    {doc.originalName}
+                  </button>
+                </td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                     doc.status === 'signed' 
@@ -48,14 +110,23 @@ function DocumentList({ documents, onRefresh }) {
                   {doc.signedAt ? new Date(doc.signedAt).toLocaleDateString() : '-'}
                 </td>
                 <td className="px-6 py-4 text-sm">
-                  {doc.status === 'signed' && (
+                  <div className="flex items-center gap-2">
+                    {doc.status === 'signed' && (
+                      <button
+                        onClick={() => downloadSigned(doc.id, doc.originalName)}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Download
+                      </button>
+                    )}
                     <button
-                      onClick={() => downloadSigned(doc.id, doc.originalName)}
-                      className="text-blue-600 hover:text-blue-800"
+                      onClick={() => deleteDocument(doc.id, doc.originalName)}
+                      className="flex items-center gap-1 text-red-600 hover:text-red-800"
+                      title="Delete document"
                     >
-                      Download
+                      <Trash2 className="w-4 h-4" />
                     </button>
-                  )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -68,6 +139,13 @@ function DocumentList({ documents, onRefresh }) {
           </div>
         )}
       </div>
+
+      {selectedDocumentId && (
+        <DocumentDetailsModal
+          documentId={selectedDocumentId}
+          onClose={() => setSelectedDocumentId(null)}
+        />
+      )}
     </div>
   );
 }

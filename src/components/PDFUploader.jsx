@@ -53,6 +53,9 @@ function PDFUploader({ onUploadComplete }) {
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     
+    // Clear any previous render tasks
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    
     await page.render({
       canvasContext: context,
       viewport: viewport
@@ -204,15 +207,27 @@ function PDFUploader({ onUploadComplete }) {
     formData.append('height', actualHeight);
 
     try {
+      const token = localStorage.getItem('authToken');
       const res = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert(errorData.error || 'Upload failed');
+        return;
+      }
+      
       const data = await res.json();
       setSigningLink(data.signingLink);
       onUploadComplete();
     } catch (error) {
-      alert('Upload failed');
+      console.error('Upload error:', error);
+      alert('Upload failed: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -238,6 +253,15 @@ function PDFUploader({ onUploadComplete }) {
             onChange={handleFileChange}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
+          {file && (
+            <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+              <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+              </svg>
+              <span className="font-medium">{file.name}</span>
+              <span className="text-gray-400">({(file.size / 1024).toFixed(1)} KB)</span>
+            </div>
+          )}
         </div>
 
         {pdfUrl && (

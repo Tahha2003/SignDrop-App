@@ -52,8 +52,7 @@ function SignPage() {
         return;
       }
 
-      alert('Document signed successfully!');
-      navigate('/');
+      navigate('/success');
     } catch (err) {
       alert('Failed to sign document');
     } finally {
